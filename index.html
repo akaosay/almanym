@@ -1,0 +1,811 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Almanym — a daily name guessing game</title>
+<style>
+  :root {
+    --bg: #faf8f4;
+    --surface: #ffffff;
+    --text: #1a1a1a;
+    --text-dim: #6b6b6b;
+    --border: #e4e1d8;
+    --green: #6aaa64;
+    --green-text: #fff;
+    --amber: #c9b458;
+    --amber-text: #fff;
+    --gray: #d3d6da;
+    --gray-text: #555;
+    --accent: #1a1a1a;
+  }
+  * { box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    margin: 0;
+    padding: 16px;
+    min-height: 100vh;
+  }
+  .wrap {
+    max-width: 760px;
+    margin: 0 auto;
+  }
+  header {
+    text-align: center;
+    padding: 8px 0 16px;
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 20px;
+  }
+  h1 {
+    margin: 0;
+    font-size: 28px;
+    letter-spacing: 0.5px;
+    font-weight: 700;
+  }
+  h1.rainbow span:nth-child(1) { color: #e63946; } /* red */
+  h1.rainbow span:nth-child(2) { color: #f4a261; } /* orange */
+  h1.rainbow span:nth-child(3) { color: #e9c46a; } /* yellow */
+  h1.rainbow span:nth-child(4) { color: #6aaa64; } /* green */
+  h1.rainbow span:nth-child(5) { color: #457b9d; } /* blue */
+  h1.rainbow span:nth-child(6) { color: #5a4fcf; } /* indigo */
+  h1.rainbow span:nth-child(7) { color: #9d4edd; } /* violet */
+  .byline {
+    font-size: 12px;
+    color: var(--text-dim);
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    margin-top: 2px;
+  }
+  .subtitle {
+    font-size: 13px;
+    color: var(--text-dim);
+    margin-top: 8px;
+  }
+  .controls {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 12px;
+    font-size: 14px;
+  }
+  .guess-counter {
+    color: var(--text-dim);
+  }
+  button {
+    font-family: inherit;
+    font-size: 14px;
+    padding: 8px 14px;
+    border: 1px solid var(--border);
+    background: var(--surface);
+    color: var(--text);
+    border-radius: 6px;
+    cursor: pointer;
+    transition: background 0.15s;
+  }
+  button:hover:not(:disabled) { background: #f0ede4; }
+  button:disabled { opacity: 0.5; cursor: not-allowed; }
+  button.primary {
+    background: var(--accent);
+    color: white;
+    border-color: var(--accent);
+  }
+  button.primary:hover:not(:disabled) { background: #333; }
+
+  .input-row {
+    position: relative;
+    display: flex;
+    gap: 8px;
+    margin-bottom: 16px;
+  }
+  input[type="text"] {
+    flex: 1;
+    font-family: inherit;
+    font-size: 16px;
+    padding: 10px 14px;
+    border: 1px solid var(--border);
+    background: var(--surface);
+    border-radius: 6px;
+    outline: none;
+  }
+  input[type="text"]:focus { border-color: var(--accent); }
+
+  .suggestions {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 100px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    margin-top: 4px;
+    max-height: 220px;
+    overflow-y: auto;
+    z-index: 10;
+    display: none;
+  }
+  .suggestion {
+    padding: 8px 14px;
+    cursor: pointer;
+    font-size: 14px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .suggestion:hover, .suggestion.active { background: #f0ede4; }
+  .suggestion .meta {
+    color: var(--text-dim);
+    font-size: 12px;
+  }
+
+  .legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    font-size: 12px;
+    color: var(--text-dim);
+    margin-bottom: 14px;
+    padding: 8px 12px;
+    background: var(--surface);
+    border-radius: 6px;
+    border: 1px solid var(--border);
+  }
+  .legend-item { display: flex; align-items: center; gap: 6px; }
+  .swatch {
+    width: 14px; height: 14px; border-radius: 3px;
+    display: inline-block;
+  }
+  .sw-green { background: var(--green); }
+  .sw-amber { background: var(--amber); }
+  .sw-gray { background: var(--gray); }
+
+  .grid {
+    display: grid;
+    grid-template-columns: 1.4fr 1fr 0.85fr 0.85fr 1fr 1fr 0.9fr;
+    gap: 6px;
+  }
+  .header-row {
+    font-size: 11px;
+    color: var(--text-dim);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    padding: 0 6px 4px;
+  }
+  .header-row > div { text-align: center; }
+  .header-row > div:first-child { text-align: left; }
+
+  .guesses { row-gap: 10px; }
+
+  .cell {
+    padding: 12px 6px;
+    border-radius: 6px;
+    text-align: center;
+    font-size: 13px;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 48px;
+    line-height: 1.2;
+    opacity: 0;
+    animation: flip 0.4s ease-out forwards;
+  }
+  @keyframes flip {
+    from { opacity: 0; transform: rotateX(90deg); }
+    to { opacity: 1; transform: rotateX(0); }
+  }
+  .cell.name-cell {
+    background: var(--surface);
+    color: var(--text);
+    border: 1px solid var(--border);
+    text-align: left;
+    padding-left: 14px;
+    justify-content: flex-start;
+    font-weight: 600;
+  }
+  .cell.exact { background: var(--green); color: var(--green-text); }
+  .cell.close { background: var(--amber); color: var(--amber-text); }
+  .cell.none { background: var(--gray); color: var(--gray-text); }
+
+  .status {
+    margin-top: 18px;
+    padding: 14px;
+    border-radius: 8px;
+    text-align: center;
+    font-size: 15px;
+    display: none;
+  }
+  .status.win {
+    background: #e7f3e1;
+    color: #2d5b1f;
+    border: 1px solid #c3dfb3;
+    display: block;
+  }
+  .status.lose {
+    background: #fdeaea;
+    color: #7a2020;
+    border: 1px solid #f4c1c1;
+    display: block;
+  }
+  .status .answer {
+    display: block;
+    margin-top: 6px;
+    font-size: 18px;
+    font-weight: 700;
+  }
+
+  .feedback {
+    font-size: 13px;
+    color: var(--text-dim);
+    margin-top: 6px;
+    min-height: 18px;
+  }
+
+  footer {
+    margin-top: 24px;
+    padding-top: 16px;
+    border-top: 1px solid var(--border);
+    text-align: center;
+    font-size: 12px;
+    color: var(--text-dim);
+  }
+
+  @media (max-width: 600px) {
+    .grid { grid-template-columns: 1.2fr 0.9fr 0.7fr 0.7fr 0.8fr 0.8fr 0.8fr; gap: 4px; }
+    .cell { font-size: 11px; padding: 10px 2px; min-height: 44px; }
+    .cell.name-cell { padding-left: 8px; font-size: 12px; }
+    .header-row { font-size: 9px; }
+    h1 { font-size: 22px; }
+    .suggestions { right: 90px; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1 class="rainbow"><span>A</span><span>L</span><span>M</span><span>A</span><span>N</span><span>Y</span><span>M</span></h1>
+    <div class="byline">by Nameberry</div>
+    <div class="subtitle">a daily name guessing game, choosing from the 2024 Top 100</div>
+  </header>
+
+  <div class="controls">
+    <span class="guess-counter" id="counter">Guess 1 of 6</span>
+    <button id="newgame">New game</button>
+  </div>
+
+  <div class="input-row">
+    <input type="text" id="guess-input" placeholder="Start typing a name..." autocomplete="off" spellcheck="false" />
+    <button class="primary" id="submit-btn">Guess</button>
+    <div class="suggestions" id="suggestions"></div>
+  </div>
+
+  <div class="legend">
+    <div class="legend-item"><span class="swatch sw-green"></span> Exact match</div>
+    <div class="legend-item"><span class="swatch sw-amber"></span> Close / related</div>
+    <div class="legend-item"><span class="swatch sw-gray"></span> No match</div>
+    <div class="legend-item">↑↓ = answer is higher / lower</div>
+  </div>
+
+  <div class="grid header-row">
+    <div>Name</div>
+    <div>Sex</div>
+    <div>1st letter</div>
+    <div>Length</div>
+    <div>Peak Decade</div>
+    <div>Origin</div>
+    <div>Rank</div>
+  </div>
+
+  <div class="guesses grid" id="guesses"></div>
+
+  <div class="feedback" id="feedback"></div>
+
+  <div class="status" id="status"></div>
+
+  <footer>
+    Data: U.S. Social Security Administration, top 100 names of 2024 (released May 2025).
+  </footer>
+</div>
+
+<script>
+// =========================================================================
+// NAME DATABASE — SSA Top 100 boys + Top 100 girls, 2024
+// Attributes: rank, sex, peakDecade, origin (broad etymological family)
+// =========================================================================
+
+const NAMES = [
+  // ===== BOYS (rank, name, sex, peakDecade, origin) =====
+  { rank:   1, name: "Liam",          sex: "M", peakDecade: 2010, origin: "Irish" },
+  { rank:   2, name: "Noah",          sex: "M", peakDecade: 2010, origin: "Hebrew" },
+  { rank:   3, name: "Oliver",        sex: "M", peakDecade: 2010, origin: "Latin" },
+  { rank:   4, name: "Theodore",      sex: "M", peakDecade: 2020, origin: "Greek" },
+  { rank:   5, name: "James",         sex: "M", peakDecade: 1950, origin: "Hebrew" },
+  { rank:   6, name: "Henry",         sex: "M", peakDecade: 1920, origin: "Germanic" },
+  { rank:   7, name: "Mateo",         sex: "M", peakDecade: 2020, origin: "Spanish" },
+  { rank:   8, name: "Elijah",        sex: "M", peakDecade: 2010, origin: "Hebrew" },
+  { rank:   9, name: "Lucas",         sex: "M", peakDecade: 2010, origin: "Latin" },
+  { rank:  10, name: "William",       sex: "M", peakDecade: 1950, origin: "Germanic" },
+  { rank:  11, name: "Benjamin",      sex: "M", peakDecade: 1980, origin: "Hebrew" },
+  { rank:  12, name: "Levi",          sex: "M", peakDecade: 2010, origin: "Hebrew" },
+  { rank:  13, name: "Ezra",          sex: "M", peakDecade: 2020, origin: "Hebrew" },
+  { rank:  14, name: "Sebastian",     sex: "M", peakDecade: 2010, origin: "Greek" },
+  { rank:  15, name: "Jack",          sex: "M", peakDecade: 1920, origin: "English" },
+  { rank:  16, name: "Daniel",        sex: "M", peakDecade: 1980, origin: "Hebrew" },
+  { rank:  17, name: "Samuel",        sex: "M", peakDecade: 2000, origin: "Hebrew" },
+  { rank:  18, name: "Michael",       sex: "M", peakDecade: 1950, origin: "Hebrew" },
+  { rank:  19, name: "Ethan",         sex: "M", peakDecade: 2000, origin: "Hebrew" },
+  { rank:  20, name: "Asher",         sex: "M", peakDecade: 2010, origin: "Hebrew" },
+  { rank:  21, name: "John",          sex: "M", peakDecade: 1950, origin: "Hebrew" },
+  { rank:  22, name: "Hudson",        sex: "M", peakDecade: 2010, origin: "English" },
+  { rank:  23, name: "Luca",          sex: "M", peakDecade: 2020, origin: "Italian" },
+  { rank:  24, name: "Leo",           sex: "M", peakDecade: 2020, origin: "Latin" },
+  { rank:  25, name: "Elias",         sex: "M", peakDecade: 2020, origin: "Hebrew" },
+  { rank:  26, name: "Owen",          sex: "M", peakDecade: 2010, origin: "Welsh" },
+  { rank:  27, name: "Alexander",     sex: "M", peakDecade: 1990, origin: "Greek" },
+  { rank:  28, name: "Dylan",         sex: "M", peakDecade: 2000, origin: "Welsh" },
+  { rank:  29, name: "Santiago",      sex: "M", peakDecade: 2020, origin: "Spanish" },
+  { rank:  30, name: "Julian",        sex: "M", peakDecade: 2010, origin: "Latin" },
+  { rank:  31, name: "David",         sex: "M", peakDecade: 1950, origin: "Hebrew" },
+  { rank:  32, name: "Joseph",        sex: "M", peakDecade: 1950, origin: "Hebrew" },
+  { rank:  33, name: "Matthew",       sex: "M", peakDecade: 1980, origin: "Hebrew" },
+  { rank:  34, name: "Luke",          sex: "M", peakDecade: 2010, origin: "Latin" },
+  { rank:  35, name: "Jackson",       sex: "M", peakDecade: 2010, origin: "English" },
+  { rank:  36, name: "Maverick",      sex: "M", peakDecade: 2020, origin: "English" },
+  { rank:  37, name: "Miles",         sex: "M", peakDecade: 2010, origin: "Latin" },
+  { rank:  38, name: "Wyatt",         sex: "M", peakDecade: 2010, origin: "English" },
+  { rank:  39, name: "Thomas",        sex: "M", peakDecade: 1950, origin: "Aramaic" },
+  { rank:  40, name: "Isaac",         sex: "M", peakDecade: 2010, origin: "Hebrew" },
+  { rank:  41, name: "Jacob",         sex: "M", peakDecade: 1990, origin: "Hebrew" },
+  { rank:  42, name: "Mason",         sex: "M", peakDecade: 2010, origin: "English" },
+  { rank:  43, name: "Gabriel",       sex: "M", peakDecade: 2000, origin: "Hebrew" },
+  { rank:  44, name: "Anthony",       sex: "M", peakDecade: 1990, origin: "Latin" },
+  { rank:  45, name: "Carter",        sex: "M", peakDecade: 2010, origin: "English" },
+  { rank:  46, name: "Logan",         sex: "M", peakDecade: 2000, origin: "Scottish" },
+  { rank:  47, name: "Aiden",         sex: "M", peakDecade: 2010, origin: "Irish" },
+  { rank:  48, name: "Grayson",       sex: "M", peakDecade: 2010, origin: "English" },
+  { rank:  49, name: "Caleb",         sex: "M", peakDecade: 2000, origin: "Hebrew" },
+  { rank:  50, name: "Cooper",        sex: "M", peakDecade: 2010, origin: "English" },
+  { rank:  51, name: "Charles",       sex: "M", peakDecade: 1940, origin: "Germanic" },
+  { rank:  52, name: "Roman",         sex: "M", peakDecade: 2010, origin: "Latin" },
+  { rank:  53, name: "Josiah",        sex: "M", peakDecade: 2010, origin: "Hebrew" },
+  { rank:  54, name: "Ezekiel",       sex: "M", peakDecade: 2020, origin: "Hebrew" },
+  { rank:  55, name: "Thiago",        sex: "M", peakDecade: 2020, origin: "Spanish" },
+  { rank:  56, name: "Isaiah",        sex: "M", peakDecade: 2000, origin: "Hebrew" },
+  { rank:  57, name: "Joshua",        sex: "M", peakDecade: 1980, origin: "Hebrew" },
+  { rank:  58, name: "Wesley",        sex: "M", peakDecade: 2010, origin: "English" },
+  { rank:  59, name: "Jayden",        sex: "M", peakDecade: 2010, origin: "English" },
+  { rank:  60, name: "Bennett",       sex: "M", peakDecade: 2020, origin: "Latin" },
+  { rank:  61, name: "Christopher",   sex: "M", peakDecade: 1980, origin: "Greek" },
+  { rank:  62, name: "Nathan",        sex: "M", peakDecade: 2000, origin: "Hebrew" },
+  { rank:  63, name: "Angel",         sex: "M", peakDecade: 2000, origin: "Greek" },
+  { rank:  64, name: "Nolan",         sex: "M", peakDecade: 2010, origin: "Irish" },
+  { rank:  65, name: "Waylon",        sex: "M", peakDecade: 2020, origin: "English" },
+  { rank:  66, name: "Cameron",       sex: "M", peakDecade: 2000, origin: "Scottish" },
+  { rank:  67, name: "Brooks",        sex: "M", peakDecade: 2020, origin: "English" },
+  { rank:  68, name: "Andrew",        sex: "M", peakDecade: 1980, origin: "Greek" },
+  { rank:  69, name: "Beau",          sex: "M", peakDecade: 2020, origin: "French" },
+  { rank:  70, name: "Weston",        sex: "M", peakDecade: 2010, origin: "English" },
+  { rank:  71, name: "Rowan",         sex: "M", peakDecade: 2020, origin: "Irish" },
+  { rank:  72, name: "Adrian",        sex: "M", peakDecade: 2000, origin: "Latin" },
+  { rank:  73, name: "Lincoln",       sex: "M", peakDecade: 2010, origin: "English" },
+  { rank:  74, name: "Enzo",          sex: "M", peakDecade: 2020, origin: "Italian" },
+  { rank:  75, name: "Ian",           sex: "M", peakDecade: 2000, origin: "Scottish" },
+  { rank:  76, name: "Kai",           sex: "M", peakDecade: 2020, origin: "Hawaiian" },
+  { rank:  77, name: "Christian",     sex: "M", peakDecade: 2000, origin: "Greek" },
+  { rank:  78, name: "Axel",          sex: "M", peakDecade: 2010, origin: "Scandinavian" },
+  { rank:  79, name: "Aaron",         sex: "M", peakDecade: 1980, origin: "Hebrew" },
+  { rank:  80, name: "Theo",          sex: "M", peakDecade: 2020, origin: "Greek" },
+  { rank:  81, name: "Silas",         sex: "M", peakDecade: 2010, origin: "Latin" },
+  { rank:  82, name: "Walker",        sex: "M", peakDecade: 2020, origin: "English" },
+  { rank:  83, name: "Jonathan",      sex: "M", peakDecade: 1980, origin: "Hebrew" },
+  { rank:  84, name: "Easton",        sex: "M", peakDecade: 2010, origin: "English" },
+  { rank:  85, name: "Greyson",       sex: "M", peakDecade: 2010, origin: "English" },
+  { rank:  86, name: "Ryan",          sex: "M", peakDecade: 1980, origin: "Irish" },
+  { rank:  87, name: "Eli",           sex: "M", peakDecade: 2010, origin: "Hebrew" },
+  { rank:  88, name: "Hunter",        sex: "M", peakDecade: 2000, origin: "English" },
+  { rank:  89, name: "Robert",        sex: "M", peakDecade: 1950, origin: "Germanic" },
+  { rank:  90, name: "Landon",        sex: "M", peakDecade: 2010, origin: "English" },
+  { rank:  91, name: "Adam",          sex: "M", peakDecade: 1980, origin: "Hebrew" },
+  { rank:  92, name: "Jameson",       sex: "M", peakDecade: 2010, origin: "English" },
+  { rank:  93, name: "Nicholas",      sex: "M", peakDecade: 1990, origin: "Greek" },
+  { rank:  94, name: "Everett",       sex: "M", peakDecade: 2010, origin: "English" },
+  { rank:  95, name: "Jordan",        sex: "M", peakDecade: 1990, origin: "Hebrew" },
+  { rank:  96, name: "Chase",         sex: "M", peakDecade: 2000, origin: "English" },
+  { rank:  97, name: "Tyler",         sex: "M", peakDecade: 1990, origin: "English" },
+  { rank:  98, name: "Declan",        sex: "M", peakDecade: 2010, origin: "Irish" },
+  { rank:  99, name: "Brayden",       sex: "M", peakDecade: 2010, origin: "English" },
+  { rank: 100, name: "Sawyer",        sex: "M", peakDecade: 2010, origin: "English" },
+
+  // ===== GIRLS =====
+  { rank:   1, name: "Olivia",        sex: "F", peakDecade: 2010, origin: "Latin" },
+  { rank:   2, name: "Emma",          sex: "F", peakDecade: 2010, origin: "Germanic" },
+  { rank:   3, name: "Amelia",        sex: "F", peakDecade: 2010, origin: "Germanic" },
+  { rank:   4, name: "Charlotte",     sex: "F", peakDecade: 2010, origin: "French" },
+  { rank:   5, name: "Mia",           sex: "F", peakDecade: 2010, origin: "Italian" },
+  { rank:   6, name: "Sophia",        sex: "F", peakDecade: 2010, origin: "Greek" },
+  { rank:   7, name: "Isabella",      sex: "F", peakDecade: 2010, origin: "Italian" },
+  { rank:   8, name: "Evelyn",        sex: "F", peakDecade: 1920, origin: "Germanic" },
+  { rank:   9, name: "Ava",           sex: "F", peakDecade: 2010, origin: "Latin" },
+  { rank:  10, name: "Sofia",         sex: "F", peakDecade: 2010, origin: "Greek" },
+  { rank:  11, name: "Luna",          sex: "F", peakDecade: 2020, origin: "Latin" },
+  { rank:  12, name: "Harper",        sex: "F", peakDecade: 2010, origin: "English" },
+  { rank:  13, name: "Camila",        sex: "F", peakDecade: 2010, origin: "Latin" },
+  { rank:  14, name: "Gianna",        sex: "F", peakDecade: 2020, origin: "Italian" },
+  { rank:  15, name: "Elizabeth",     sex: "F", peakDecade: 1980, origin: "Hebrew" },
+  { rank:  16, name: "Eleanor",       sex: "F", peakDecade: 1920, origin: "Greek" },
+  { rank:  17, name: "Ella",          sex: "F", peakDecade: 2010, origin: "Germanic" },
+  { rank:  18, name: "Abigail",       sex: "F", peakDecade: 2000, origin: "Hebrew" },
+  { rank:  19, name: "Emily",         sex: "F", peakDecade: 1990, origin: "Latin" },
+  { rank:  20, name: "Avery",         sex: "F", peakDecade: 2010, origin: "English" },
+  { rank:  21, name: "Scarlett",      sex: "F", peakDecade: 2010, origin: "English" },
+  { rank:  22, name: "Madison",       sex: "F", peakDecade: 2000, origin: "English" },
+  { rank:  23, name: "Layla",         sex: "F", peakDecade: 2010, origin: "Arabic" },
+  { rank:  24, name: "Penelope",      sex: "F", peakDecade: 2010, origin: "Greek" },
+  { rank:  25, name: "Aria",          sex: "F", peakDecade: 2010, origin: "Italian" },
+  { rank:  26, name: "Chloe",         sex: "F", peakDecade: 2000, origin: "Greek" },
+  { rank:  27, name: "Grace",         sex: "F", peakDecade: 2000, origin: "Latin" },
+  { rank:  28, name: "Ellie",         sex: "F", peakDecade: 2010, origin: "Greek" },
+  { rank:  29, name: "Nora",          sex: "F", peakDecade: 2010, origin: "Irish" },
+  { rank:  30, name: "Hazel",         sex: "F", peakDecade: 1920, origin: "English" },
+  { rank:  31, name: "Zoey",          sex: "F", peakDecade: 2010, origin: "Greek" },
+  { rank:  32, name: "Riley",         sex: "F", peakDecade: 2010, origin: "Irish" },
+  { rank:  33, name: "Victoria",      sex: "F", peakDecade: 1990, origin: "Latin" },
+  { rank:  34, name: "Lily",          sex: "F", peakDecade: 2010, origin: "English" },
+  { rank:  35, name: "Aurora",        sex: "F", peakDecade: 2020, origin: "Latin" },
+  { rank:  36, name: "Violet",        sex: "F", peakDecade: 2010, origin: "Latin" },
+  { rank:  37, name: "Nova",          sex: "F", peakDecade: 2020, origin: "Latin" },
+  { rank:  38, name: "Hannah",        sex: "F", peakDecade: 1990, origin: "Hebrew" },
+  { rank:  39, name: "Emilia",        sex: "F", peakDecade: 2020, origin: "Latin" },
+  { rank:  40, name: "Zoe",           sex: "F", peakDecade: 2010, origin: "Greek" },
+  { rank:  41, name: "Stella",        sex: "F", peakDecade: 2010, origin: "Latin" },
+  { rank:  42, name: "Everly",        sex: "F", peakDecade: 2020, origin: "English" },
+  { rank:  43, name: "Isla",          sex: "F", peakDecade: 2020, origin: "Scottish" },
+  { rank:  44, name: "Leah",          sex: "F", peakDecade: 2010, origin: "Hebrew" },
+  { rank:  45, name: "Lillian",       sex: "F", peakDecade: 1920, origin: "Latin" },
+  { rank:  46, name: "Addison",       sex: "F", peakDecade: 2010, origin: "English" },
+  { rank:  47, name: "Willow",        sex: "F", peakDecade: 2020, origin: "English" },
+  { rank:  48, name: "Lucy",          sex: "F", peakDecade: 2010, origin: "Latin" },
+  { rank:  49, name: "Paisley",       sex: "F", peakDecade: 2010, origin: "Scottish" },
+  { rank:  50, name: "Natalie",       sex: "F", peakDecade: 2000, origin: "Latin" },
+  { rank:  51, name: "Naomi",         sex: "F", peakDecade: 2010, origin: "Hebrew" },
+  { rank:  52, name: "Eliana",        sex: "F", peakDecade: 2020, origin: "Hebrew" },
+  { rank:  53, name: "Brooklyn",      sex: "F", peakDecade: 2010, origin: "English" },
+  { rank:  54, name: "Elena",         sex: "F", peakDecade: 2010, origin: "Greek" },
+  { rank:  55, name: "Aubrey",        sex: "F", peakDecade: 2010, origin: "Germanic" },
+  { rank:  56, name: "Claire",        sex: "F", peakDecade: 2010, origin: "French" },
+  { rank:  57, name: "Ivy",           sex: "F", peakDecade: 2020, origin: "English" },
+  { rank:  58, name: "Kinsley",       sex: "F", peakDecade: 2010, origin: "English" },
+  { rank:  59, name: "Audrey",        sex: "F", peakDecade: 2010, origin: "English" },
+  { rank:  60, name: "Maya",          sex: "F", peakDecade: 2000, origin: "Sanskrit" },
+  { rank:  61, name: "Genesis",       sex: "F", peakDecade: 2010, origin: "Greek" },
+  { rank:  62, name: "Skylar",        sex: "F", peakDecade: 2010, origin: "Dutch" },
+  { rank:  63, name: "Bella",         sex: "F", peakDecade: 2010, origin: "Italian" },
+  { rank:  64, name: "Aaliyah",       sex: "F", peakDecade: 2010, origin: "Arabic" },
+  { rank:  65, name: "Madelyn",       sex: "F", peakDecade: 2010, origin: "Hebrew" },
+  { rank:  66, name: "Savannah",      sex: "F", peakDecade: 2000, origin: "Spanish" },
+  { rank:  67, name: "Anna",          sex: "F", peakDecade: 1920, origin: "Hebrew" },
+  { rank:  68, name: "Delilah",       sex: "F", peakDecade: 2010, origin: "Hebrew" },
+  { rank:  69, name: "Serenity",      sex: "F", peakDecade: 2010, origin: "Latin" },
+  { rank:  70, name: "Caroline",      sex: "F", peakDecade: 2000, origin: "Germanic" },
+  { rank:  71, name: "Kennedy",       sex: "F", peakDecade: 2010, origin: "Irish" },
+  { rank:  72, name: "Valentina",     sex: "F", peakDecade: 2010, origin: "Latin" },
+  { rank:  73, name: "Ruby",          sex: "F", peakDecade: 1920, origin: "Latin" },
+  { rank:  74, name: "Sophie",        sex: "F", peakDecade: 2010, origin: "Greek" },
+  { rank:  75, name: "Alice",         sex: "F", peakDecade: 1920, origin: "Germanic" },
+  { rank:  76, name: "Gabriella",     sex: "F", peakDecade: 2010, origin: "Hebrew" },
+  { rank:  77, name: "Sadie",         sex: "F", peakDecade: 2010, origin: "Hebrew" },
+  { rank:  78, name: "Ariana",        sex: "F", peakDecade: 2010, origin: "Italian" },
+  { rank:  79, name: "Allison",       sex: "F", peakDecade: 1990, origin: "Germanic" },
+  { rank:  80, name: "Hailey",        sex: "F", peakDecade: 2000, origin: "English" },
+  { rank:  81, name: "Autumn",        sex: "F", peakDecade: 2000, origin: "Latin" },
+  { rank:  82, name: "Nevaeh",        sex: "F", peakDecade: 2010, origin: "English" },
+  { rank:  83, name: "Natalia",       sex: "F", peakDecade: 2010, origin: "Latin" },
+  { rank:  84, name: "Quinn",         sex: "F", peakDecade: 2010, origin: "Irish" },
+  { rank:  85, name: "Josephine",     sex: "F", peakDecade: 1920, origin: "Hebrew" },
+  { rank:  86, name: "Sarah",         sex: "F", peakDecade: 1980, origin: "Hebrew" },
+  { rank:  87, name: "Cora",          sex: "F", peakDecade: 2010, origin: "Greek" },
+  { rank:  88, name: "Emery",         sex: "F", peakDecade: 2010, origin: "Germanic" },
+  { rank:  89, name: "Samantha",      sex: "F", peakDecade: 1990, origin: "Aramaic" },
+  { rank:  90, name: "Piper",         sex: "F", peakDecade: 2010, origin: "English" },
+  { rank:  91, name: "Leilani",       sex: "F", peakDecade: 2020, origin: "Hawaiian" },
+  { rank:  92, name: "Eva",           sex: "F", peakDecade: 1920, origin: "Hebrew" },
+  { rank:  93, name: "Everleigh",     sex: "F", peakDecade: 2020, origin: "English" },
+  { rank:  94, name: "Madeline",      sex: "F", peakDecade: 2000, origin: "Hebrew" },
+  { rank:  95, name: "Lydia",         sex: "F", peakDecade: 2010, origin: "Greek" },
+  { rank:  96, name: "Jade",          sex: "F", peakDecade: 2000, origin: "Spanish" },
+  { rank:  97, name: "Peyton",        sex: "F", peakDecade: 2010, origin: "English" },
+  { rank:  98, name: "Brielle",       sex: "F", peakDecade: 2010, origin: "Hebrew" },
+  { rank:  99, name: "Adeline",       sex: "F", peakDecade: 2010, origin: "Germanic" },
+  { rank: 100, name: "Rylee",         sex: "F", peakDecade: 2010, origin: "Irish" }
+];
+
+// Origin family groupings — for the "close / related" amber state
+const ORIGIN_FAMILY = {
+  "Hebrew": "Semitic",
+  "Aramaic": "Semitic",
+  "Arabic": "Semitic",
+  "Greek": "Hellenic",
+  "Latin": "Romance",
+  "Italian": "Romance",
+  "Spanish": "Romance",
+  "French": "Romance",
+  "Germanic": "Germanic",
+  "English": "Germanic",
+  "Dutch": "Germanic",
+  "Scandinavian": "Germanic",
+  "Irish": "Celtic",
+  "Scottish": "Celtic",
+  "Welsh": "Celtic",
+  "Hawaiian": "Pacific",
+  "Sanskrit": "Indic"
+};
+
+// =========================================================================
+// GAME STATE
+// =========================================================================
+const MAX_GUESSES = 6;
+let answer = null;
+let guesses = [];
+let activeSuggestion = -1;
+let currentSuggestions = [];
+
+// =========================================================================
+// COMPARISON LOGIC
+// =========================================================================
+function compareGuess(guess) {
+  const cells = [];
+
+  // Sex
+  if (guess.sex === answer.sex) {
+    cells.push({ text: guess.sex === "M" ? "Boy" : "Girl", kind: "exact" });
+  } else {
+    cells.push({ text: guess.sex === "M" ? "Boy" : "Girl", kind: "none" });
+  }
+
+  // First letter
+  const gL = guess.name[0].toUpperCase();
+  const aL = answer.name[0].toUpperCase();
+  if (gL === aL) {
+    cells.push({ text: gL, kind: "exact" });
+  } else {
+    const arrow = gL < aL ? "↓" : "↑";
+    cells.push({ text: gL + " " + arrow, kind: "none" });
+  }
+
+  // Length
+  const gLen = guess.name.length;
+  const aLen = answer.name.length;
+  if (gLen === aLen) {
+    cells.push({ text: String(gLen), kind: "exact" });
+  } else {
+    const arrow = gLen < aLen ? "↑" : "↓";
+    const kind = Math.abs(gLen - aLen) <= 1 ? "close" : "none";
+    cells.push({ text: gLen + " " + arrow, kind: kind });
+  }
+
+  // Peak Decade (the decade in which this name had the most US births)
+  const gP = guess.peakDecade;
+  const aP = answer.peakDecade;
+  if (gP === aP) {
+    cells.push({ text: gP + "s", kind: "exact" });
+  } else {
+    // ↑ means the answer's peak is LATER than the guess's peak
+    // ↓ means the answer's peak is EARLIER
+    const arrow = gP < aP ? "↑" : "↓";
+    const diff = Math.abs(gP - aP);
+    const kind = diff <= 20 ? "close" : "none";
+    cells.push({ text: gP + "s " + arrow, kind: kind });
+  }
+
+  // Origin
+  if (guess.origin === answer.origin) {
+    cells.push({ text: guess.origin, kind: "exact" });
+  } else if (ORIGIN_FAMILY[guess.origin] && ORIGIN_FAMILY[guess.origin] === ORIGIN_FAMILY[answer.origin]) {
+    cells.push({ text: guess.origin, kind: "close" });
+  } else {
+    cells.push({ text: guess.origin, kind: "none" });
+  }
+
+  // Rank (within their respective gender list)
+  const gR = guess.rank;
+  const aR = answer.rank;
+  if (gR === aR && guess.sex === answer.sex) {
+    cells.push({ text: "#" + gR, kind: "exact" });
+  } else {
+    // Use directional arrow based on rank number (lower rank = more popular)
+    const arrow = gR < aR ? "↓" : "↑";
+    const kind = Math.abs(gR - aR) <= 10 ? "close" : "none";
+    cells.push({ text: "#" + gR + " " + arrow, kind: kind });
+  }
+
+  return { name: guess.name, sex: guess.sex, cells: cells };
+}
+
+// =========================================================================
+// RENDERING
+// =========================================================================
+function renderGuesses() {
+  const container = document.getElementById("guesses");
+  container.innerHTML = "";
+  for (const g of guesses) {
+    const nameCell = document.createElement("div");
+    nameCell.className = "cell name-cell";
+    nameCell.textContent = g.name;
+    container.appendChild(nameCell);
+
+    g.cells.forEach((c, i) => {
+      const cell = document.createElement("div");
+      cell.className = "cell " + c.kind;
+      cell.textContent = c.text;
+      cell.style.animationDelay = (i * 0.08) + "s";
+      container.appendChild(cell);
+    });
+  }
+  document.getElementById("counter").textContent =
+    "Guess " + Math.min(guesses.length + 1, MAX_GUESSES) + " of " + MAX_GUESSES;
+}
+
+function showStatus(won) {
+  const s = document.getElementById("status");
+  if (won) {
+    s.className = "status win";
+    s.innerHTML = "Nailed it! <span class='answer'>" + answer.name + " — #" + answer.rank +
+                  " " + (answer.sex === "M" ? "boys'" : "girls'") + " name of 2024</span>";
+  } else {
+    s.className = "status lose";
+    s.innerHTML = "Out of guesses! The name was <span class='answer'>" + answer.name + " — #" + answer.rank +
+                  " " + (answer.sex === "M" ? "boys'" : "girls'") + " name of 2024</span>";
+  }
+  document.getElementById("guess-input").disabled = true;
+  document.getElementById("submit-btn").disabled = true;
+}
+
+// =========================================================================
+// AUTOCOMPLETE
+// =========================================================================
+function updateSuggestions() {
+  const input = document.getElementById("guess-input");
+  const box = document.getElementById("suggestions");
+  const q = input.value.trim().toLowerCase();
+
+  if (!q) {
+    box.style.display = "none";
+    currentSuggestions = [];
+    return;
+  }
+
+  // Filter, prefer prefix matches, then substring
+  const prefixMatches = NAMES.filter(n => n.name.toLowerCase().startsWith(q));
+  const substringMatches = NAMES.filter(n =>
+    !n.name.toLowerCase().startsWith(q) && n.name.toLowerCase().includes(q)
+  );
+  const matches = prefixMatches.concat(substringMatches).slice(0, 8);
+
+  currentSuggestions = matches;
+  activeSuggestion = -1;
+
+  if (matches.length === 0) {
+    box.style.display = "none";
+    return;
+  }
+
+  box.innerHTML = "";
+  matches.forEach((m, i) => {
+    const item = document.createElement("div");
+    item.className = "suggestion";
+    item.innerHTML = "<span>" + m.name + "</span><span class='meta'>" +
+                     (m.sex === "M" ? "Boy" : "Girl") + " · #" + m.rank + "</span>";
+    item.addEventListener("mousedown", (e) => {
+      e.preventDefault();
+      input.value = m.name;
+      box.style.display = "none";
+      submitGuess();
+    });
+    box.appendChild(item);
+  });
+  box.style.display = "block";
+}
+
+function highlightSuggestion() {
+  const items = document.querySelectorAll(".suggestion");
+  items.forEach((el, i) => {
+    el.classList.toggle("active", i === activeSuggestion);
+  });
+}
+
+// =========================================================================
+// SUBMIT
+// =========================================================================
+function submitGuess() {
+  const input = document.getElementById("guess-input");
+  const feedback = document.getElementById("feedback");
+  const val = input.value.trim();
+
+  if (!val) return;
+
+  const match = NAMES.find(n => n.name.toLowerCase() === val.toLowerCase());
+  if (!match) {
+    feedback.textContent = '"' + val + '" is not in the SSA top 100. Try one from the suggestions.';
+    return;
+  }
+
+  feedback.textContent = "";
+  guesses.push(compareGuess(match));
+  input.value = "";
+  document.getElementById("suggestions").style.display = "none";
+  renderGuesses();
+
+  const won = match.name.toLowerCase() === answer.name.toLowerCase() && match.sex === answer.sex;
+  if (won) {
+    showStatus(true);
+  } else if (guesses.length >= MAX_GUESSES) {
+    showStatus(false);
+  }
+}
+
+// =========================================================================
+// NEW GAME
+// =========================================================================
+function newGame() {
+  answer = NAMES[Math.floor(Math.random() * NAMES.length)];
+  guesses = [];
+  document.getElementById("status").className = "status";
+  document.getElementById("status").innerHTML = "";
+  document.getElementById("feedback").textContent = "";
+  const input = document.getElementById("guess-input");
+  input.disabled = false;
+  input.value = "";
+  document.getElementById("submit-btn").disabled = false;
+  document.getElementById("suggestions").style.display = "none";
+  renderGuesses();
+  input.focus();
+  // Uncomment to debug:
+  // console.log("Answer:", answer);
+}
+
+// =========================================================================
+// EVENT BINDINGS
+// =========================================================================
+document.getElementById("submit-btn").addEventListener("click", submitGuess);
+document.getElementById("newgame").addEventListener("click", newGame);
+
+const input = document.getElementById("guess-input");
+input.addEventListener("input", updateSuggestions);
+input.addEventListener("keydown", (e) => {
+  const box = document.getElementById("suggestions");
+  if (e.key === "Enter") {
+    if (activeSuggestion >= 0 && currentSuggestions[activeSuggestion]) {
+      input.value = currentSuggestions[activeSuggestion].name;
+      box.style.display = "none";
+    }
+    submitGuess();
+    e.preventDefault();
+  } else if (e.key === "ArrowDown") {
+    if (currentSuggestions.length > 0) {
+      activeSuggestion = Math.min(activeSuggestion + 1, currentSuggestions.length - 1);
+      highlightSuggestion();
+      e.preventDefault();
+    }
+  } else if (e.key === "ArrowUp") {
+    if (currentSuggestions.length > 0) {
+      activeSuggestion = Math.max(activeSuggestion - 1, 0);
+      highlightSuggestion();
+      e.preventDefault();
+    }
+  } else if (e.key === "Escape") {
+    box.style.display = "none";
+  }
+});
+input.addEventListener("blur", () => {
+  // Delay so suggestion click can fire
+  setTimeout(() => {
+    document.getElementById("suggestions").style.display = "none";
+  }, 150);
+});
+
+// Start
+newGame();
+</script>
+</body>
+</html>
